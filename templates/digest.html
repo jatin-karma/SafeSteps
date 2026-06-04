@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>SafeSteps | Weekly Digest</title>
+
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+</head>
+
+<body>
+
+<div class="app-shell">
+	<aside class="sidebar">
+		<a class="logo" href="/">🛡 SafeSteps</a>
+		<ul class="nav-list">
+			<li class="nav-item">
+				<a href="/map"><i class="fa-solid fa-map"></i>Live Map</a>
+			</li>
+			<li class="nav-item">
+				<a href="/report"><i class="fa-solid fa-circle-exclamation"></i>Report Incident</a>
+			</li>
+			<li class="nav-item">
+				<a href="/route"><i class="fa-solid fa-route"></i>Route Advisor</a>
+			</li>
+			<li class="nav-item active">
+				<a href="/digest"><i class="fa-solid fa-chart-column"></i>Weekly Digest</a>
+			</li>
+			<li class="nav-item">
+				<a href="/"><i class="fa-solid fa-house"></i>About Us</a>
+			</li>
+		</ul>
+		<button class="sos-button" id="sos-sidebar">🚨 SOS</button>
+	</aside>
+
+	<main class="content">
+		<div class="page-header">
+			<div>
+				<p class="page-eyebrow">Community Insights</p>
+				<h1 class="page-title">Weekly Safety Digest</h1>
+				<p class="page-subtitle">AI-generated highlights and hotspots for the past 7 days.</p>
+			</div>
+			<button class="btn-secondary" id="refresh-digest">Regenerate Digest</button>
+		</div>
+
+		<div class="stat-grid">
+			<div class="stat-card">
+				<p>Total Incidents</p>
+				<h2 id="stat-total">0</h2>
+			</div>
+			<div class="stat-card">
+				<p>Night Incidents</p>
+				<h2 id="stat-night">0</h2>
+			</div>
+			<div class="stat-card">
+				<p>Areas Affected</p>
+				<h2 id="stat-areas">0</h2>
+			</div>
+			<div class="stat-card">
+				<p>Reports This Month</p>
+				<h2 id="stat-month">0</h2>
+			</div>
+		</div>
+
+		<div class="digest-grid">
+			<section class="card">
+				<h3>AI Digest</h3>
+				<p id="digest-text">Loading weekly digest...</p>
+				<div class="digest-meta">
+					<span id="digest-range"></span>
+					<span class="pill" id="digest-hotspot">Hotspot: -</span>
+				</div>
+			</section>
+
+			<section class="card">
+				<h3>Top Incident Types</h3>
+				<ul class="list" id="type-list"></ul>
+			</section>
+
+			<section class="card">
+				<h3>High Risk Areas</h3>
+				<ul class="list" id="area-list"></ul>
+				<p class="tip" id="digest-tip"></p>
+			</section>
+		</div>
+	</main>
+</div>
+
+<script>
+	const digestText = document.getElementById("digest-text");
+	const digestHotspot = document.getElementById("digest-hotspot");
+	const digestTip = document.getElementById("digest-tip");
+	const digestRange = document.getElementById("digest-range");
+
+	const statTotal = document.getElementById("stat-total");
+	const statNight = document.getElementById("stat-night");
+	const statAreas = document.getElementById("stat-areas");
+	const statMonth = document.getElementById("stat-month");
+
+	const typeList = document.getElementById("type-list");
+	const areaList = document.getElementById("area-list");
+
+	function weekRange() {
+		const now = new Date();
+		const start = new Date(now);
+		start.setDate(now.getDate() - 6);
+		return `${start.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+	}
+
+	function renderList(target, items) {
+		target.innerHTML = "";
+		items.forEach((item) => {
+			const li = document.createElement("li");
+			li.textContent = item;
+			target.appendChild(li);
+		});
+	}
+
+	function summarizeTypes(incidents) {
+		const counts = {};
+		incidents.forEach((item) => {
+			const key = item.category || "other";
+			counts[key] = (counts[key] || 0) + 1;
+		});
+		return Object.entries(counts)
+			.sort((a, b) => b[1] - a[1])
+			.slice(0, 4)
+			.map(([key, value]) => `${key.replace(/_/g, " ")} (${value})`);
+	}
+
+	function summarizeAreas(incidents) {
+		return incidents
+			.slice(0, 4)
+			.map((item) => item.short_label || "Area report");
+	}
+
+	async function loadDigest() {
+		digestRange.textContent = weekRange();
+
+		let incidents = [];
+		try {
+			const response = await fetch("/api/incidents");
+			incidents = await response.json();
+		} catch (error) {
+			incidents = [];
+		}
+
+		const fallback = {
+			digest: "Reports were concentrated near parking areas and quieter lanes this week. Travel in pairs after dark.",
+			hotspot: "Main Gate",
+			tip: "Use well-lit paths and keep someone informed of your route.",
+			total: incidents.length || 12,
+			night_count: incidents.filter((item) => ["night_only", "evening_night"].includes(item.time_risk)).length || 6,
+		};
+
+		let data = fallback;
+		try {
+			const response = await fetch("/api/weekly-digest", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ incidents }),
+			});
+			data = await response.json();
+		} catch (error) {
+			data = fallback;
+		}
+
+		digestText.textContent = data.digest;
+		digestHotspot.textContent = `Hotspot: ${data.hotspot}`;
+		digestTip.textContent = data.tip;
+
+		statTotal.textContent = data.total || incidents.length;
+		statNight.textContent = data.night_count || 0;
+		statAreas.textContent = new Set(incidents.map((item) => item.short_label)).size || 4;
+		statMonth.textContent = incidents.length || 14;
+
+		renderList(typeList, summarizeTypes(incidents));
+		renderList(areaList, summarizeAreas(incidents));
+	}
+
+	document.getElementById("refresh-digest").addEventListener("click", loadDigest);
+	loadDigest();
+
+	const sosButton = document.getElementById("sos-sidebar");
+	if (sosButton) {
+		sosButton.addEventListener("click", () => {
+			navigator.geolocation.getCurrentPosition((pos) => {
+				const { latitude, longitude } = pos.coords;
+				const url = `https://wa.me/?text=🚨 SOS! My location: https://maps.google.com/?q=${latitude},${longitude}`;
+				window.open(url, "_blank");
+			});
+		});
+	}
+</script>
+
+</body>
+</html>

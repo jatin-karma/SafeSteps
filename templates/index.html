@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeSteps</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+</head>
+<body>
+
+<div class="app-shell">
+
+    <aside class="sidebar">
+        <a class="logo" href="/">🛡 SafeSteps</a>
+
+        <ul class="nav-list">
+            <li class="nav-item">
+                <a href="/map"><i class="fa-solid fa-map"></i>Live Map</a>
+            </li>
+            <li class="nav-item">
+                <a href="/report"><i class="fa-solid fa-circle-exclamation"></i>Report Incident</a>
+            </li>
+            <li class="nav-item">
+                <a href="/route"><i class="fa-solid fa-route"></i>Route Advisor</a>
+            </li>
+            <li class="nav-item">
+                <a href="/digest"><i class="fa-solid fa-chart-column"></i>Weekly Digest</a>
+            </li>
+            <li class="nav-item active">
+                <a href="/"><i class="fa-solid fa-house"></i>About Us</a>
+            </li>
+        </ul>
+
+        <button class="sos-button" id="sos-sidebar">
+            🚨 SOS
+        </button>
+    </aside>
+
+    <main class="content">
+        <section class="hero">
+            <div class="hero-content">
+                <h1>
+                    Your Safety.
+                    <span class="hero-highlight">Our Priority.</span>
+                </h1>
+                <p>
+                    SafeSteps is an AI-powered platform that helps you avoid unsafe areas,
+                    report incidents, and travel with confidence.
+                </p>
+                <div class="hero-actions">
+                    <a href="/map" class="btn-primary">View Live Map</a>
+                    <a href="/report" class="btn-secondary">Report an Incident</a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <img
+                    class="hero-illustration"
+                    src="{{ url_for('static', filename='images/herogirl.png') }}"
+                    alt="Woman holding a phone">
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fa-solid fa-shield"></i>
+                </div>
+                <h2>Community Powered</h2>
+                <p>Students report unsafe spots and help each other stay safe.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <h2>Live Heatmap</h2>
+                <p>Real-time safety heatmap that changes with time of day.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fa-solid fa-route"></i>
+                </div>
+                <h2>Smart Route Advisor</h2>
+                <p>Get AI-powered route suggestions that avoid risky areas.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fa-brands fa-whatsapp"></i>
+                </div>
+                <h2>WhatsApp SOS</h2>
+                <p>Send SOS alerts to your trusted contacts in one tap.</p>
+            </div>
+        </section>
+    </main>
+
+</div>
+
+<script>
+    const sosButton = document.getElementById("sos-sidebar");
+    if (sosButton) {
+        sosButton.addEventListener("click", () => {
+            if (!navigator.geolocation) {
+                return;
+            }
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const { latitude, longitude } = pos.coords;
+                const url = `https://wa.me/?text=🚨 SOS! My location: https://maps.google.com/?q=${latitude},${longitude}`;
+                window.open(url, "_blank");
+            });
+        });
+    }
+</script>
+
+</body>
+</html>

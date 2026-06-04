@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeSteps | Live Map</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="logo" href="/">🛡 SafeSteps</a>
+
+        <ul class="nav-list">
+            <li class="nav-item active">
+                <a href="/map"><i class="fa-solid fa-map"></i>Live Map</a>
+            </li>
+            <li class="nav-item">
+                <a href="/report"><i class="fa-solid fa-circle-exclamation"></i>Report Incident</a>
+            </li>
+            <li class="nav-item">
+                <a href="/route"><i class="fa-solid fa-route"></i>Route Advisor</a>
+            </li>
+            <li class="nav-item">
+                <a href="/digest"><i class="fa-solid fa-chart-column"></i>Weekly Digest</a>
+            </li>
+            <li class="nav-item">
+                <a href="/"><i class="fa-solid fa-house"></i>About Us</a>
+            </li>
+        </ul>
+
+        <button class="sos-button" id="sos-sidebar">🚨 SOS</button>
+    </aside>
+
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow">Live Heatmap</p>
+                <h1 class="page-title">Campus Safety Pulse</h1>
+                <p class="page-subtitle">Track reports in real time and adjust by time of day.</p>
+            </div>
+            <div class="time-chip" id="time-chip">Morning</div>
+        </div>
+
+        <div class="map-shell">
+            <section class="map-panel">
+                <div id="map"></div>
+                <div class="map-float-card">
+                    <p class="float-label">Overall Risk</p>
+                    <h3 id="risk-score">0/10</h3>
+                </div>
+            </section>
+
+            <aside class="map-sidebar">
+                <div class="card">
+                    <h3>Time of Day</h3>
+                    <input type="range" min="0" max="23" value="10" id="time-slider">
+                    <p id="time-label">Morning</p>
+                </div>
+
+                <div class="card">
+                    <h3>AI Safety Briefing</h3>
+                    <p id="narration-text">Safety updates will appear here as incidents load.</p>
+                    <div class="risk-badge" id="risk-badge">0/10</div>
+                </div>
+
+                <div class="card ghost-card">
+                    <h3>Safe Spots</h3>
+                    <p>Green shields mark well-lit, trusted areas for quick stops.</p>
+                </div>
+            </aside>
+        </div>
+    </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    const map = L.map("map").setView([22.7196, 75.8577], 14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    const heatLayer = L.heatLayer([], {
+        radius: 28,
+        blur: 20,
+        maxZoom: 15,
+        gradient: {
+            0.2: "#22c55e",
+            0.5: "#facc15",
+            0.8: "#fb923c",
+            1.0: "#ef4444",
+        },
+    }).addTo(map);
+
+    const markerLayer = L.layerGroup().addTo(map);
+    const safeLayer = L.layerGroup().addTo(map);
+
+    const safeSpots = [
+        { name: "Library Gate", coords: [22.7185, 75.8610] },
+        { name: "Main Canteen", coords: [22.7200, 75.8577] },
+        { name: "Hostel Block", coords: [22.7240, 75.8555] },
+    ];
+
+    const incidents = [];
+
+    const timeSlider = document.getElementById("time-slider");
+    const timeLabel = document.getElementById("time-label");
+    const timeChip = document.getElementById("time-chip");
+    const riskScore = document.getElementById("risk-score");
+    const riskBadge = document.getElementById("risk-badge");
+    const mapElement = document.getElementById("map");
+
+    function getTimeBucket(hour) {
+        if (hour >= 20 || hour <= 5) return "Night";
+        if (hour >= 17) return "Evening";
+        if (hour >= 12) return "Afternoon";
+        return "Morning";
+    }
+
+    function matchesTimeRisk(item, hour) {
+        const bucket = getTimeBucket(hour).toLowerCase();
+        const timeRisk = (item.time_risk || "always").toLowerCase();
+
+        if (timeRisk === "always") return true;
+        if (timeRisk === "night_only") return bucket === "night";
+        if (timeRisk === "evening_night") return bucket === "evening" || bucket === "night";
+        if (timeRisk === "daytime_only") return bucket === "morning" || bucket === "afternoon";
+        return true;
+    }
+
+    function getIntensityBoost(hour) {
+        if (hour >= 20 || hour <= 5) return 1.45;
+        if (hour >= 17) return 1.2;
+        return 1.0;
+    }
+
+    function updateBrightness(hour) {
+        if (hour >= 20 || hour <= 5) {
+            mapElement.style.filter = "brightness(0.72)";
+            return;
+        }
+        if (hour >= 17) {
+            mapElement.style.filter = "brightness(0.88)";
+            return;
+        }
+        mapElement.style.filter = "brightness(1)";
+    }
+
+    function updateSafeSpots() {
+        safeLayer.clearLayers();
+        safeSpots.forEach((spot) => {
+            const icon = L.divIcon({
+                html: "<div class='safe-emoji'>🛡️</div>",
+                className: "emoji-marker",
+                iconSize: [24, 24],
+            });
+            L.marker(spot.coords, { icon })
+                .addTo(safeLayer)
+                .bindPopup(`<strong>${spot.name}</strong>`);
+        });
+    }
+
+    function updateMap() {
+        const hour = Number(timeSlider.value);
+        const label = getTimeBucket(hour);
+        timeLabel.textContent = `${label} (${hour}:00)`;
+        timeChip.textContent = label;
+        updateBrightness(hour);
+
+        const boost = getIntensityBoost(hour);
+        const filtered = incidents.filter((item) => matchesTimeRisk(item, hour));
+
+        const heatPoints = filtered.map((item) => [
+            Number(item.lat),
+            Number(item.lng),
+            ((Number(item.severity) || 5) / 10) * boost,
+        ]);
+
+        heatLayer.setLatLngs(heatPoints);
+        markerLayer.clearLayers();
+
+        let totalSeverity = 0;
+        filtered.forEach((item) => {
+            totalSeverity += Number(item.severity) || 0;
+            const color = Number(item.severity) >= 7 ? "#ef4444" : "#f59e0b";
+            L.circleMarker([item.lat, item.lng], {
+                radius: 8,
+                color,
+                fillColor: color,
+                fillOpacity: 0.8,
+            })
+                .addTo(markerLayer)
+                .bindPopup(
+                    `<strong>${item.short_label || "Incident"}</strong><br>${item.description || ""}`
+                );
+        });
+
+        const avg = filtered.length ? (totalSeverity / filtered.length).toFixed(1) : "0.0";
+        riskScore.textContent = `${avg}/10`;
+        riskBadge.textContent = `${avg}/10`;
+    }
+
+    function loadDemoIncidents() {
+        incidents.length = 0;
+        incidents.push(
+            {
+                lat: 22.7212,
+                lng: 75.8583,
+                category: "poor_lighting",
+                severity: 6,
+                time_risk: "night_only",
+                short_label: "Low light",
+                advice: "Stick to the main road.",
+                description: "Lights flicker near the lab block.",
+            },
+            {
+                lat: 22.7174,
+                lng: 75.8549,
+                category: "harassment",
+                severity: 8,
+                time_risk: "evening_night",
+                short_label: "Harassment",
+                advice: "Travel with a buddy.",
+                description: "Group reported comments near the gate.",
+            }
+        );
+        updateMap();
+    }
+
+    let db = null;
+    try {
+        const response = await fetch("/api/firebase-config");
+        const firebaseConfig = await response.json();
+        if (firebaseConfig.apiKey) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        }
+    } catch (error) {
+        console.warn("Firebase not configured.", error);
+    }
+
+    if (db) {
+        onSnapshot(collection(db, "incidents"), (snapshot) => {
+            incidents.length = 0;
+            snapshot.forEach((doc) => incidents.push(doc.data()));
+            updateMap();
+        });
+    } else {
+        loadDemoIncidents();
+    }
+
+    timeSlider.addEventListener("input", updateMap);
+    updateSafeSpots();
+
+    const sosButton = document.getElementById("sos-sidebar");
+    if (sosButton) {
+        sosButton.addEventListener("click", () => {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const { latitude, longitude } = pos.coords;
+                const url = `https://wa.me/?text=🚨 SOS! My location: https://maps.google.com/?q=${latitude},${longitude}`;
+                window.open(url, "_blank");
+            });
+        });
+    }
+</script>
+
+</body>
+</html>

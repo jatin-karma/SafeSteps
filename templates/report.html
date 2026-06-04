@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>SafeSteps | Report Incident</title>
+
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+</head>
+<body>
+
+<div class="app-shell">
+	<aside class="sidebar">
+		<a class="logo" href="/">🛡 SafeSteps</a>
+		<ul class="nav-list">
+			<li class="nav-item">
+				<a href="/map"><i class="fa-solid fa-map"></i>Live Map</a>
+			</li>
+			<li class="nav-item active">
+				<a href="/report"><i class="fa-solid fa-circle-exclamation"></i>Report Incident</a>
+			</li>
+			<li class="nav-item">
+				<a href="/route"><i class="fa-solid fa-route"></i>Route Advisor</a>
+			</li>
+			<li class="nav-item">
+				<a href="/digest"><i class="fa-solid fa-chart-column"></i>Weekly Digest</a>
+			</li>
+			<li class="nav-item">
+				<a href="/"><i class="fa-solid fa-house"></i>About Us</a>
+			</li>
+		</ul>
+		<button class="sos-button" id="sos-sidebar">🚨 SOS</button>
+	</aside>
+
+	<main class="content">
+		<div class="page-header">
+			<div>
+				<p class="page-eyebrow">Anonymous Report</p>
+				<h1 class="page-title">Report an Incident</h1>
+				<p class="page-subtitle">Help keep your community safe by sharing what happened.</p>
+			</div>
+		</div>
+
+		<section class="report-shell">
+			<div class="report-left">
+				<ol class="report-steps" id="report-steps">
+					<li class="active">Location</li>
+					<li>Describe</li>
+					<li>Submit</li>
+				</ol>
+
+				<div class="report-illustration" aria-hidden="true">
+					<svg viewBox="0 0 240 220" xmlns="http://www.w3.org/2000/svg">
+						<defs>
+							<linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+								<stop offset="0%" stop-color="#8b6bff" />
+								<stop offset="100%" stop-color="#5b2fe0" />
+							</linearGradient>
+						</defs>
+						<rect x="20" y="30" width="200" height="150" rx="24" fill="#efeaff" />
+						<path d="M120 40l58 18v50c0 38-25 65-58 82-33-17-58-44-58-82V58l58-18z" fill="url(#shield)" />
+						<circle cx="120" cy="100" r="20" fill="#efeaff" />
+						<path d="M120 92l10 8-10 8-10-8z" fill="#5b2fe0" />
+						<path d="M40 190h160" stroke="#c9b7ff" stroke-width="8" stroke-linecap="round" />
+					</svg>
+				</div>
+
+				<p class="report-note">All reports are anonymous</p>
+			</div>
+
+			<div class="report-right">
+				<div class="report-card">
+					<div class="step-panel" data-step="1">
+						<div class="form-group">
+							<label>Your Location</label>
+							<div class="input-row">
+								<input id="lat" type="text" placeholder="Latitude">
+								<input id="lng" type="text" placeholder="Longitude">
+								<button class="ghost-button" type="button" id="use-location">
+									<i class="fa-solid fa-location-crosshairs"></i>
+									Use Current Location
+								</button>
+							</div>
+						</div>
+
+						<div class="form-group">
+							<label>When did this happen?</label>
+							<div class="input-row">
+								<input id="date" type="date">
+								<input id="time" type="time">
+							</div>
+						</div>
+
+						<button class="btn-primary full-width" type="button" id="to-step-2">
+							Next →
+						</button>
+					</div>
+
+					<div class="step-panel" data-step="2" hidden>
+						<div class="form-group">
+							<label>Describe what happened</label>
+							<textarea id="description" rows="6" maxlength="300" placeholder="E.g. Poor lighting on this road, feels unsafe at night."></textarea>
+							<div class="char-counter" id="char-counter">0/300</div>
+						</div>
+
+						<button class="btn-primary full-width" type="button" id="analyze-btn">
+							Analyze &amp; Next →
+						</button>
+
+						<div class="ai-result" id="ai-result" hidden>
+							<h4>AI Assessment</h4>
+							<p id="ai-category">Category: -</p>
+							<div class="severity-bar">
+								<span id="severity-fill"></span>
+							</div>
+							<p id="ai-advice">Advice: -</p>
+						</div>
+					</div>
+
+					<div class="step-panel" data-step="3" hidden>
+						<div class="summary-card">
+							<h3>Review Summary</h3>
+							<ul>
+								<li><strong>Location:</strong> <span id="summary-location">-</span></li>
+								<li><strong>Date:</strong> <span id="summary-date">-</span></li>
+								<li><strong>Time:</strong> <span id="summary-time">-</span></li>
+								<li><strong>Category:</strong> <span id="summary-category">-</span></li>
+								<li><strong>Severity:</strong> <span id="summary-severity">-</span></li>
+								<li><strong>Advice:</strong> <span id="summary-advice">-</span></li>
+							</ul>
+						</div>
+						<button class="btn-primary full-width" type="button" id="submit-btn">
+							Submit Report
+						</button>
+					</div>
+				</div>
+			</div>
+		</section>
+	</main>
+</div>
+
+<div class="overlay" id="success-overlay" hidden>
+	<div class="overlay-card">
+		<h2>Report Submitted</h2>
+		<p>Thank you for helping keep SafeSteps safer for everyone.</p>
+		<a class="btn-primary" href="/map">Return to Map</a>
+	</div>
+</div>
+
+<script>
+	const steps = document.querySelectorAll(".report-steps li");
+	const panels = document.querySelectorAll(".step-panel");
+
+	const latInput = document.getElementById("lat");
+	const lngInput = document.getElementById("lng");
+	const dateInput = document.getElementById("date");
+	const timeInput = document.getElementById("time");
+	const descriptionInput = document.getElementById("description");
+	const charCounter = document.getElementById("char-counter");
+	const aiResult = document.getElementById("ai-result");
+	const severityFill = document.getElementById("severity-fill");
+
+	const summaryLocation = document.getElementById("summary-location");
+	const summaryDate = document.getElementById("summary-date");
+	const summaryTime = document.getElementById("summary-time");
+	const summaryCategory = document.getElementById("summary-category");
+	const summarySeverity = document.getElementById("summary-severity");
+	const summaryAdvice = document.getElementById("summary-advice");
+
+	const state = {
+		category: "other",
+		severity: 5,
+		time_risk: "always",
+		short_label: "General concern",
+		advice: "Stay in well-lit areas and share your location.",
+	};
+
+	function showStep(step) {
+		panels.forEach((panel) => {
+			panel.hidden = panel.dataset.step !== String(step);
+		});
+		steps.forEach((item, index) => {
+			item.classList.toggle("active", index === step - 1);
+		});
+	}
+
+	document.getElementById("use-location").addEventListener("click", () => {
+		navigator.geolocation.getCurrentPosition((pos) => {
+			latInput.value = pos.coords.latitude.toFixed(6);
+			lngInput.value = pos.coords.longitude.toFixed(6);
+		});
+	});
+
+	document.getElementById("to-step-2").addEventListener("click", () => {
+		showStep(2);
+	});
+
+	descriptionInput.addEventListener("input", () => {
+		charCounter.textContent = `${descriptionInput.value.length}/300`;
+	});
+
+	document.getElementById("analyze-btn").addEventListener("click", async () => {
+		const payload = {
+			lat: latInput.value,
+			lng: lngInput.value,
+			description: descriptionInput.value.trim(),
+			time: timeInput.value,
+			date: dateInput.value,
+		};
+
+		try {
+			const response = await fetch("/api/classify-incident", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			});
+			const data = await response.json();
+			Object.assign(state, data);
+		} catch (error) {
+			Object.assign(state, {
+				category: "other",
+				severity: 5,
+				time_risk: "always",
+				short_label: "General concern",
+				advice: "Stay in well-lit areas and share your location.",
+			});
+		}
+
+		document.getElementById("ai-category").textContent = `Category: ${state.category}`;
+		document.getElementById("ai-advice").textContent = `Advice: ${state.advice}`;
+		severityFill.style.width = `${Math.min(100, Number(state.severity) * 10)}%`;
+		aiResult.hidden = false;
+
+		summaryLocation.textContent = `${latInput.value}, ${lngInput.value}`;
+		summaryDate.textContent = dateInput.value || "-";
+		summaryTime.textContent = timeInput.value || "-";
+		summaryCategory.textContent = state.category;
+		summarySeverity.textContent = state.severity;
+		summaryAdvice.textContent = state.advice;
+
+		showStep(3);
+	});
+
+	document.getElementById("submit-btn").addEventListener("click", async () => {
+		const payload = {
+			lat: latInput.value,
+			lng: lngInput.value,
+			description: descriptionInput.value.trim(),
+			time: timeInput.value,
+			date: dateInput.value,
+			timestamp: new Date().toISOString(),
+			category: state.category,
+			severity: state.severity,
+			time_risk: state.time_risk,
+			short_label: state.short_label,
+			advice: state.advice,
+		};
+
+		try {
+			await fetch("/api/submit-incident", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			});
+		} catch (error) {
+			console.warn("Submit failed", error);
+		}
+
+		document.getElementById("success-overlay").hidden = false;
+	});
+
+	const sosButton = document.getElementById("sos-sidebar");
+	if (sosButton) {
+		sosButton.addEventListener("click", () => {
+			navigator.geolocation.getCurrentPosition((pos) => {
+				const { latitude, longitude } = pos.coords;
+				const url = `https://wa.me/?text=🚨 SOS! My location: https://maps.google.com/?q=${latitude},${longitude}`;
+				window.open(url, "_blank");
+			});
+		});
+	}
+</script>
+
+</body>
+</html>
